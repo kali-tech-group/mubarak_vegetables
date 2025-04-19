@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "704950380065",
+    "firebase_url": "https://mubarak-vegi-default-rtdb.firebaseio.com",
+    "project_id": "mubarak-vegi",
+    "storage_bucket": "mubarak-vegi.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:704950380065:android:b1cc166dd7dc7b89ede560",
+        "android_client_info": {
+          "package_name": "com.example.mubarak_vegetables"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC2tT5uovSUvzCIxm8TV6wvJ0vyTGpmZiQ"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
