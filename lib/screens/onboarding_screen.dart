@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
-import 'package:mubarak_vegetables/screens/auth_screen.dart';
+import 'package:mubarak_vegetables/screens/LocationUpdateScreen.dart';
 
 class OnboardingScreen extends StatefulWidget {
   @override
@@ -31,6 +31,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       'color': Color(0xFFF5F9F4),
     },
   ];
+
+  get userPhone => '8489104772';
 
   @override
   Widget build(BuildContext context) {
@@ -118,7 +120,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     onPressed: () {
                       Navigator.pushReplacement(
                         context,
-                        MaterialPageRoute(builder: (_) => AuthScreen()),
+                        MaterialPageRoute(
+                          builder:
+                              (_) => LocationUpdateScreen(userPhone: userPhone),
+                        ),
                       );
                     },
                     child: Text('Get Started', style: TextStyle(fontSize: 16)),
