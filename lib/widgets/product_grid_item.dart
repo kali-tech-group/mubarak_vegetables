@@ -31,8 +31,9 @@ class ProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 4,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      elevation: 6,
+      shadowColor: Colors.green.shade800, // More intense shadow color
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -40,7 +41,7 @@ class ProductCard extends StatelessWidget {
           Expanded(
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(12),
+                top: Radius.circular(18), // Rounded corners for image
               ),
               child: CachedNetworkImage(
                 imageUrl: product.imageUrl,
@@ -49,7 +50,9 @@ class ProductCard extends StatelessWidget {
                 placeholder:
                     (ctx, url) => Center(
                       child: CircularProgressIndicator(
-                        color: Colors.green[800],
+                        color:
+                            Colors
+                                .green[700], // A subtle green loading indicator
                       ),
                     ),
                 errorWidget: (ctx, url, err) => const Icon(Icons.error),
@@ -59,21 +62,22 @@ class ProductCard extends StatelessWidget {
 
           // Product Details
           Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Product Name
                 Text(
                   product.name,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontWeight: FontWeight.bold,
-                    fontSize: 16,
+                    fontSize: 18,
+                    color: Colors.green.shade900, // Dark green for text
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
 
                 // Price and Organic tag
                 Row(
@@ -82,7 +86,7 @@ class ProductCard extends StatelessWidget {
                       child: Text(
                         '₹${product.price.toStringAsFixed(0)} / ${product.unit}',
                         style: TextStyle(
-                          color: Colors.green[800],
+                          color: Colors.green[800], // Deeper green for price
                           fontWeight: FontWeight.bold,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -92,17 +96,24 @@ class ProductCard extends StatelessWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 6,
-                          vertical: 2,
+                          vertical: 4,
                         ),
                         decoration: BoxDecoration(
-                          color: Colors.green[50],
-                          borderRadius: BorderRadius.circular(4),
+                          color: Colors.green[100],
+                          borderRadius: BorderRadius.circular(12),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.green.shade200.withOpacity(0.6),
+                              spreadRadius: 1,
+                              blurRadius: 5,
+                            ),
+                          ],
                         ),
                         child: const Text(
                           'ORGANIC',
                           style: TextStyle(
                             color: Colors.green,
-                            fontSize: 10,
+                            fontSize: 12,
                             fontWeight: FontWeight.bold,
                           ),
                         ),

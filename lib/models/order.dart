@@ -21,6 +21,7 @@ class Order {
     required this.createdAt,
     this.updatedAt,
     this.cancellationReason,
+    required Map order,
   });
 
   Order copyWith({
@@ -38,6 +39,7 @@ class Order {
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       cancellationReason: cancellationReason ?? this.cancellationReason,
+      order: {},
     );
   }
 

@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:mubarak_vegetables/screens/auth_screen.dart';
 import 'package:mubarak_vegetables/screens/BottomNavigationScreen.dart';
+import 'package:mubarak_vegetables/screens/shared_prefs_helper.dart';
 
 class SplashScreen extends StatefulWidget {
   @override
@@ -13,51 +14,58 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
+  bool _isCheckingAuth = true;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(seconds: 3),
+      duration: const Duration(seconds: 2),
       vsync: this,
     )..forward();
 
-    _navigateAfterDelay();
+    _checkAuthStatus();
   }
 
-  Future<void> _navigateAfterDelay() async {
-    await Future.delayed(Duration(seconds: 3));
+  Future<void> _checkAuthStatus() async {
+    // Check if user data exists in shared preferences
+    String? savedPhone = await SharedPrefsHelper.getUserPhone();
+    String? savedName = await SharedPrefsHelper.getUserName();
 
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    String? savedPhone = prefs.getString('phone_number');
-
-    if (savedPhone != null && savedPhone.isNotEmpty) {
-      print("Saved phone number: $savedPhone");
-
-      // Check if this phone exists in Firebase Realtime DB
+    if (savedPhone != null && savedName != null) {
+      // Verify the user exists in Firebase
       final ref = FirebaseDatabase.instance.ref("users/$savedPhone");
       final snapshot = await ref.get();
 
       if (snapshot.exists) {
-        print("Phone number exists in Firebase. Navigating to HomePage.");
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => BottomNavigationScreen()),
-        );
+        // User is authenticated and exists in Firebase
+        print("User authenticated. Phone: $savedPhone, Name: $savedName");
+        _navigateToHome();
       } else {
-        print("Phone not found in Firebase. Going to AuthScreen.");
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => AuthScreen()),
-        );
+        // User data in shared prefs doesn't match Firebase
+        print("User data not found in Firebase. Clearing local data.");
+        await SharedPrefsHelper.clearUserData();
+        _navigateToAuth();
       }
     } else {
-      print("No saved phone number found. Redirecting to AuthScreen.");
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => AuthScreen()),
-      );
+      // No saved user data found
+      print("No saved user data found.");
+      _navigateToAuth();
     }
+  }
+
+  void _navigateToHome() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => BottomNavigationScreen()),
+    );
+  }
+
+  void _navigateToAuth() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => AuthScreen()),
+    );
   }
 
   @override
@@ -65,36 +73,59 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
-        child: ScaleTransition(
-          scale: Tween(begin: 0.5, end: 1.0).animate(
-            CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              SizedBox(height: 280),
-              Image.asset('assets/images/Frame.png', width: 150, height: 150),
-              SizedBox(height: 20),
-              SizedBox(height: 270),
-              Text(
-                'MADE BY',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.green[800],
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Expanded(
+              child: ScaleTransition(
+                scale: Tween(begin: 0.5, end: 1.0).animate(
+                  CurvedAnimation(
+                    parent: _controller,
+                    curve: Curves.elasticOut,
+                  ),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Image.asset(
+                      'assets/images/Frame.png',
+                      width: 150,
+                      height: 150,
+                    ),
+                    SizedBox(height: 20),
+                    if (_isCheckingAuth)
+                      CircularProgressIndicator(
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+                      ),
+                  ],
                 ),
               ),
-              SizedBox(height: 2),
-              Text(
-                'Kali Nuxus',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: const Color.fromARGB(255, 85, 125, 255),
-                ),
+            ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Column(
+                children: [
+                  // Text(
+                  //   'MADE BY',
+                  //   style: TextStyle(
+                  //     fontSize: 10,
+                  //     fontWeight: FontWeight.bold,
+                  //     color: Colors.green[800],
+                  //   ),
+                  // ),
+                  // SizedBox(height: 2),
+                  // Text(
+                  //   'Kali Nuxus',
+                  //   style: TextStyle(
+                  //     fontSize: 16,
+                  //     fontWeight: FontWeight.bold,
+                  //     color: const Color.fromARGB(255, 85, 125, 255),
+                  //   ),
+                  // ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

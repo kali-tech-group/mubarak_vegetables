@@ -6,7 +6,7 @@ import '../services/airtable_service.dart';
 class ProductsProvider with ChangeNotifier {
   final AirtableService _airtable = AirtableService(
     apiKey:
-        'patPwU4lGwxgsp7Qz.77cc1766c648aa6bfeb6691341b270c506d259c0a22e181c7cc4b3721f9a5f17',
+        'patPwU4lGwxgsp7Qz.ecd2a289c7ddd1f19428124e63237e72abe282abbb5809152b6c79f858025437',
   );
   List<app_models.Category> _categories = [];
   List<Product> _products = [];
@@ -34,7 +34,9 @@ class ProductsProvider with ChangeNotifier {
       // Load products
       final productsData = await _airtable.fetchProducts();
       _products =
-          productsData.map((prod) => Product.fromAirtable(prod)).toList();
+          productsData
+              .map((prod) => Product.fromAirtable(prod as Map<String, dynamic>))
+              .toList();
     } catch (e) {
       _error = 'Failed to load data: ${e.toString()}';
       if (kDebugMode) print(_error);

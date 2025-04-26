@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/cart_item.dart';
-import '../models/order.dart' as app_models; // ✅ Use alias to avoid name clash
+import '../models/order.dart' as app_models;
 
 class OrdersProvider with ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -57,7 +57,8 @@ class OrdersProvider with ChangeNotifier {
                       title: item['title'] ?? '',
                       quantity: item['quantity'] ?? 0,
                       price: (item['price'] as num).toDouble(),
-                      productName: null,
+                      productName: item['productName'] ?? 'Unknown Product',
+                      imageUrl: item['imageUrl'] ?? '', // Added imageUrl
                     );
                   }).toList(),
               address: data['address'] ?? '',
@@ -66,6 +67,7 @@ class OrdersProvider with ChangeNotifier {
               createdAt: (data['createdAt'] as Timestamp).toDate(),
               updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
               cancellationReason: data['cancellationReason'],
+              order: {},
             );
           }).toList();
     } catch (error) {
@@ -83,6 +85,9 @@ class OrdersProvider with ChangeNotifier {
     required double amount,
     required String address,
     required String paymentMethod,
+    required String orderId,
+    required String status,
+    required String deliveryTime,
   }) async {
     try {
       _clearError();
@@ -118,6 +123,7 @@ class OrdersProvider with ChangeNotifier {
           status: 'pending',
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
+          order: {},
         ),
       );
 
@@ -204,7 +210,8 @@ class OrdersProvider with ChangeNotifier {
                       title: item['title'] ?? '',
                       quantity: item['quantity'] ?? 0,
                       price: (item['price'] as num).toDouble(),
-                      productName: null,
+                      productName: item['productName'] ?? 'Unknown Product',
+                      imageUrl: item['imageUrl'] ?? '', // Added imageUrl
                     );
                   }).toList(),
               address: data['address'] ?? '',
@@ -213,11 +220,13 @@ class OrdersProvider with ChangeNotifier {
               createdAt: (data['createdAt'] as Timestamp).toDate(),
               updatedAt: (data['updatedAt'] as Timestamp?)?.toDate(),
               cancellationReason: data['cancellationReason'],
+              order: {},
             );
           }).toList();
         });
   }
 
-  // Unused placeholder function
-  void updateAuth(uid) {}
+  void updateAuth(String? uid) {
+    // Handle user authentication update logic if necessary
+  }
 }

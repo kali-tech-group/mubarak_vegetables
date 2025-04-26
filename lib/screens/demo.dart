@@ -2,19 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import '../providers/cart_provider.dart';
 
-class CheckoutScreen extends StatefulWidget {
+class demo extends StatefulWidget {
   static const routeName = '/checkout';
 
   @override
-  State<CheckoutScreen> createState() => _CheckoutScreenState();
+  State<demo> createState() => _CheckoutScreenState();
 }
 
-class _CheckoutScreenState extends State<CheckoutScreen> {
+class _CheckoutScreenState extends State<demo> {
   String? userPhone;
   String? userAddress;
   bool isLoadingAddress = true;
+  bool isPlacingOrder = false;
   String selectedPayment = 'COD';
   String promoCode = '';
   double discount = 0.0;
@@ -28,29 +31,61 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   }
 
   Future<void> fetchUserPhoneAndAddress() async {
-    final prefs = await SharedPreferences.getInstance();
-    userPhone = prefs.getString('userPhone');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      userPhone = prefs.getString('userPhone');
 
-    if (userPhone != null) {
-      DatabaseReference userRef = FirebaseDatabase.instance.ref(
-        'users/$userPhone',
-      );
-      final addressSnap = await userRef.child('location/address').get();
-      final promoSnap = await userRef.child('promoClaimed').get();
+      if (userPhone != null) {
+        DatabaseReference userRef = FirebaseDatabase.instance.ref(
+          'users/$userPhone',
+        );
+        final addressSnap = await userRef.child('location/address').get();
+        final promoSnap = await userRef.child('promoClaimed').get();
 
-      setState(() {
-        userAddress =
-            addressSnap.exists
-                ? addressSnap.value.toString()
-                : 'No address found. Please update in profile.';
-        isPromoClaimed = promoSnap.value == true;
-        isLoadingAddress = false;
-      });
+        if (mounted) {
+          setState(() {
+            userAddress =
+                addressSnap.exists
+                    ? addressSnap.value.toString()
+                    : 'No address found. Please update in profile.';
+            isPromoClaimed = promoSnap.exists ? promoSnap.value as bool : false;
+            isLoadingAddress = false;
+          });
+        }
+      } else {
+        if (mounted) {
+          setState(() {
+            isLoadingAddress = false;
+          });
+        }
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          isLoadingAddress = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading address: ${error.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     }
   }
 
   void applyPromoCode(double itemsTotal) async {
-    if (promoCode == 'MUBARAKOFF30') {
+    if (promoCode.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please enter a promo code'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (promoCode.toUpperCase() == 'MUBARAKOFF30') {
       if (isPromoClaimed) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -59,33 +94,50 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           ),
         );
       } else {
-        double percentageDiscount = itemsTotal * 0.30;
-        double appliedDiscount =
-            percentageDiscount > 30 ? 30 : percentageDiscount;
+        try {
+          double percentageDiscount = itemsTotal * 0.30;
+          double appliedDiscount =
+              percentageDiscount > 30 ? 30 : percentageDiscount;
 
-        setState(() {
-          discount = appliedDiscount;
-        });
+          if (mounted) {
+            setState(() {
+              discount = appliedDiscount;
+            });
+          }
 
-        await FirebaseDatabase.instance
-            .ref('users/$userPhone/promoClaimed')
-            .set(true);
+          if (userPhone != null) {
+            await FirebaseDatabase.instance
+                .ref('users/$userPhone/promoClaimed')
+                .set(true);
+          }
 
-        setState(() {
-          isPromoClaimed = true;
-        });
+          if (mounted) {
+            setState(() {
+              isPromoClaimed = true;
+            });
+          }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Promo code applied!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Promo code applied!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } catch (error) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error applying promo: ${error.toString()}'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     } else {
-      setState(() {
-        discount = 0.0;
-      });
+      if (mounted) {
+        setState(() {
+          discount = 0.0;
+        });
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -93,6 +145,123 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           backgroundColor: Colors.red,
         ),
       );
+    }
+  }
+
+  Future<void> placeOrder(CartProvider cart) async {
+    if (userPhone == null || userPhone!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User information not found. Please login again.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (userAddress == null ||
+        userAddress!.isEmpty ||
+        userAddress == 'No address found. Please update in profile.') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please update your address before placing order'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    if (cart.items.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Your cart is empty'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      isPlacingOrder = true;
+    });
+
+    try {
+      // Prepare order data
+      final orderData = {
+        'fields': {
+          'User Phone': userPhone,
+          'Address': userAddress,
+          'Items': json.encode(
+            cart.items.values
+                .map(
+                  (item) => {
+                    'title': item.title,
+                    'price': item.price,
+                    'quantity': item.quantity,
+                    'imageUrl': item.imageUrl,
+                  },
+                )
+                .toList(),
+          ),
+          'Payment Method': selectedPayment,
+          'Subtotal': cart.totalAmount,
+          'Delivery Fee': deliveryFee,
+          'Discount': discount,
+          'Total': cart.totalAmount + deliveryFee - discount,
+          'Status': 'Pending',
+          'Order Time': DateTime.now().toIso8601String(),
+        },
+      };
+
+      // Replace with your Airtable API details
+      const airtableBaseId = 'YOUR_AIRTABLE_BASE_ID';
+      const airtableApiKey = 'YOUR_AIRTABLE_API_KEY';
+      const airtableTableName = 'orders';
+
+      final url = Uri.parse(
+        'https://api.airtable.com/v0/$airtableBaseId/$airtableTableName',
+      );
+
+      final response = await http.post(
+        url,
+        headers: {
+          'Authorization': 'Bearer $airtableApiKey',
+          'Content-Type': 'application/json',
+        },
+        body: json.encode(orderData),
+      );
+
+      if (response.statusCode == 200) {
+        // Order successfully placed
+        cart.clearCart();
+        if (mounted) {
+          Navigator.of(context).popUntil((route) => route.isFirst);
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Order placed successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        throw Exception(
+          'Failed to place order. Status code: ${response.statusCode}. Response: ${response.body}',
+        );
+      }
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error placing order: ${error.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          isPlacingOrder = false;
+        });
+      }
     }
   }
 
@@ -182,7 +351,9 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                     const SizedBox(height: 10),
                     TextField(
                       onChanged: (value) {
-                        promoCode = value;
+                        setState(() {
+                          promoCode = value;
+                        });
                       },
                       decoration: InputDecoration(
                         labelText: 'Enter Promo Code',
@@ -273,15 +444,15 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                             ),
                           ),
                           const SizedBox(height: 10),
-                          _summaryRow(
+                          _buildSummaryRow(
                             'Items Total',
                             '₹${itemsTotal.toStringAsFixed(2)}',
                           ),
-                          _summaryRow(
+                          _buildSummaryRow(
                             'Delivery Fee',
                             '₹${deliveryFee.toStringAsFixed(2)}',
                           ),
-                          _summaryRow(
+                          _buildSummaryRow(
                             'Promo Code Discount',
                             '- ₹${discount.toStringAsFixed(2)}',
                             color:
@@ -290,82 +461,11 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                                     : Colors.red.shade700,
                           ),
                           const Divider(),
-                          _summaryRow(
+                          _buildSummaryRow(
                             'Total Amount',
                             '₹${totalAmount.toStringAsFixed(2)}',
                             isBold: true,
                             color: Colors.green.shade900,
-                          ),
-                          const SizedBox(height: 20),
-                          ElevatedButton(
-                            onPressed: () async {
-                              // Get the current time for order timestamp
-                              final orderTimestamp =
-                                  DateTime.now().toIso8601String();
-
-                              // Create the order data map
-                              Map<String, dynamic> orderData = {
-                                'userPhone': userPhone,
-                                'userAddress': userAddress,
-                                'paymentMethod': selectedPayment,
-                                'promoCode': promoCode,
-                                'discount': discount,
-                                'deliveryFee': deliveryFee,
-                                'totalAmount': totalAmount,
-                                'items':
-                                    cart.items.values.map((item) {
-                                      return {
-                                        'itemName': item.title,
-                                        'quantity': item.quantity,
-                                        'price': item.price,
-                                        'totalPrice':
-                                            item.price * item.quantity,
-                                      };
-                                    }).toList(),
-                                'timestamp': orderTimestamp,
-                              };
-
-                              // Save the order data to Firebase Realtime Database under 'orders' node
-                              try {
-                                await FirebaseDatabase.instance
-                                    .ref('orders/$orderTimestamp')
-                                    .set(orderData);
-
-                                // Show success message
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Order Placed Successfully!'),
-                                    backgroundColor: Colors.green,
-                                  ),
-                                );
-
-                                // Optionally, clear the cart or redirect to another page
-                                cart.clear();
-                                Navigator.pop(context);
-                              } catch (e) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text('Failed to place order: $e'),
-                                    backgroundColor: Colors.red,
-                                  ),
-                                );
-                              }
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green.shade900,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                            ),
-                            child: const Text(
-                              'PLACE ORDER',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
                           ),
                         ],
                       ),
@@ -373,34 +473,67 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                   ],
                 ),
               ),
+      bottomNavigationBar: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: ElevatedButton(
+            onPressed: isPlacingOrder ? null : () => placeOrder(cart),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade800,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+            child:
+                isPlacingOrder
+                    ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(color: Colors.white),
+                    )
+                    : const Text(
+                      'PLACE ORDER',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _summaryRow(
+  Widget _buildSummaryRow(
     String label,
     String value, {
     bool isBold = false,
     Color color = Colors.black,
   }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+            ),
           ),
-        ),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-            color: color,
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
+              color: color,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:lottie/lottie.dart';
+import 'package:mubarak_vegetables/screens/LocationUpdateScreen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mubarak_vegetables/screens/BottomNavigationScreen.dart';
+import 'package:mubarak_vegetables/screens/shared_prefs_helper.dart';
 
 class AuthScreen extends StatefulWidget {
   @override
@@ -19,8 +20,38 @@ class _AuthScreenState extends State<AuthScreen> {
   final DatabaseReference databaseRef = FirebaseDatabase.instance.ref().child(
     "users",
   );
+  bool _isCheckingAuth = true;
 
-  // Method to handle sign up or login
+  @override
+  void initState() {
+    super.initState();
+    _checkSavedUser();
+  }
+
+  void _checkSavedUser() async {
+    // Check if user data exists in shared preferences
+    String? savedPhone = await SharedPrefsHelper.getUserPhone();
+    String? savedName = await SharedPrefsHelper.getUserName();
+
+    if (savedPhone != null && savedName != null) {
+      // Verify the user exists in Firebase
+      final snapshot = await databaseRef.child(savedPhone).get();
+      if (snapshot.exists) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => BottomNavigationScreen()),
+        );
+      } else {
+        // Clear invalid saved data
+        await SharedPrefsHelper.clearUserData();
+      }
+    }
+
+    setState(() {
+      _isCheckingAuth = false;
+    });
+  }
+
   void _submitForm() async {
     if (_formKey.currentState!.validate()) {
       final name = _nameController.text.trim();
@@ -28,14 +59,16 @@ class _AuthScreenState extends State<AuthScreen> {
       final password = _passwordController.text.trim();
 
       if (_isLogin) {
+        // Login logic
         final snapshot = await databaseRef.child(phone).get();
         if (snapshot.exists) {
           final userData = Map<String, dynamic>.from(
             snapshot.value as Map<Object?, Object?>,
           );
           if (userData['password'] == password) {
-            SharedPreferences prefs = await SharedPreferences.getInstance();
-            await prefs.setString('phone_number', phone);
+            // Save user data locally
+            await SharedPrefsHelper.setUserPhone(phone);
+            await SharedPrefsHelper.setUserName(userData['name']);
 
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
@@ -43,7 +76,6 @@ class _AuthScreenState extends State<AuthScreen> {
                 backgroundColor: Colors.green,
               ),
             );
-
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => BottomNavigationScreen()),
@@ -55,6 +87,7 @@ class _AuthScreenState extends State<AuthScreen> {
           _showError('Phone number not found');
         }
       } else {
+        // Signup logic
         final snapshot = await databaseRef.child(phone).get();
         if (snapshot.exists) {
           _showError('This phone number is already registered');
@@ -66,8 +99,9 @@ class _AuthScreenState extends State<AuthScreen> {
             'signup_time': DateTime.now().toIso8601String(),
           });
 
-          SharedPreferences prefs = await SharedPreferences.getInstance();
-          await prefs.setString('phone_number', phone);
+          // Save user data locally
+          await SharedPrefsHelper.setUserPhone(phone);
+          await SharedPrefsHelper.setUserName(name);
 
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -75,10 +109,11 @@ class _AuthScreenState extends State<AuthScreen> {
               backgroundColor: Colors.green,
             ),
           );
-
           Navigator.pushReplacement(
             context,
-            MaterialPageRoute(builder: (_) => OnboardingScreen()),
+            MaterialPageRoute(
+              builder: (_) => LocationUpdateScreen(userPhone: phone.trim()),
+            ),
           );
         }
       }
@@ -106,224 +141,120 @@ class _AuthScreenState extends State<AuthScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.green.shade100,
-      body: Center(
-        child: SingleChildScrollView(
-          child: Container(
-            margin: EdgeInsets.all(20),
-            padding: EdgeInsets.all(25),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(25),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withOpacity(0.2),
-                  blurRadius: 10,
-                  offset: Offset(0, 5),
-                ),
-              ],
-            ),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    _isLogin ? 'Login' : 'Sign Up',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.green[800],
-                    ),
-                  ),
-                  SizedBox(height: 20),
-                  if (!_isLogin)
-                    TextFormField(
-                      controller: _nameController,
-                      decoration: _inputDecoration('Name', Icons.person),
-                      validator:
-                          (value) => value!.isEmpty ? 'Enter your name' : null,
-                    ),
-                  if (!_isLogin) SizedBox(height: 15),
-                  TextFormField(
-                    controller: _phoneController,
-                    decoration: _inputDecoration('Phone Number', Icons.phone),
-                    keyboardType: TextInputType.phone,
-                    validator: (value) {
-                      if (value!.isEmpty || value.length < 10)
-                        return 'Enter a valid phone number';
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 15),
-                  TextFormField(
-                    controller: _passwordController,
-                    decoration: _inputDecoration('Password', Icons.lock),
-                    obscureText: true,
-                    validator: (value) {
-                      if (value!.isEmpty || value.length < 6)
-                        return 'Password must be at least 6 characters';
-                      return null;
-                    },
-                  ),
-                  SizedBox(height: 25),
-                  ElevatedButton(
-                    onPressed: _submitForm,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 15,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                    ),
-                    child: Text(
-                      _isLogin ? 'Login' : 'Sign Up',
-                      style: TextStyle(fontSize: 16, color: Colors.white),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => setState(() => _isLogin = !_isLogin),
-                    child: Text(
-                      _isLogin
-                          ? 'Create new account'
-                          : 'Already have an account? Login',
-                      style: TextStyle(color: Colors.green[700]),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
+    // Show loading screen while checking auth status
+    if (_isCheckingAuth) {
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
 
-// obord
-
-class OnboardingScreen extends StatefulWidget {
-  @override
-  _OnboardingScreenState createState() => _OnboardingScreenState();
-}
-
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  final PageController _pageController = PageController();
-  int _currentPage = 0;
-
-  final List<Map<String, dynamic>> _pages = [
-    {
-      'image': 'assets/lotties/vegi.json',
-      'title': 'Farm Fresh Vegetables',
-      'description': 'Direct from local farms to your kitchen',
-      'color': Color(0xFFF5F9F4),
-    },
-    {
-      'image': 'assets/lotties/dele.json',
-      'title': 'Fast Delivery',
-      'description': 'Delivered quickly to your doorstep',
-      'color': Color(0xFFF5F9F4),
-    },
-    {
-      'image': 'assets/lotties/mony.json',
-      'title': 'Affordable Prices',
-      'description': 'Best deals for healthy eating',
-      'color': Color(0xFFF5F9F4),
-    },
-  ];
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
       body: Stack(
         children: [
-          PageView.builder(
-            controller: _pageController,
-            itemCount: _pages.length,
-            onPageChanged: (index) => setState(() => _currentPage = index),
-            itemBuilder: (_, index) {
-              return Container(
-                color: _pages[index]['color'],
-                padding: EdgeInsets.symmetric(horizontal: 30, vertical: 80),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Lottie.asset(
-                      _pages[index]['image'],
-                      height: 300,
-                      fit: BoxFit.contain,
-                    ),
-                    SizedBox(height: 40),
-                    Text(
-                      _pages[index]['title'],
-                      style: TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.green[800],
-                      ),
-                    ),
-                    SizedBox(height: 20),
-                    Text(
-                      _pages[index]['description'],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 16, color: Colors.grey[800]),
+          Positioned.fill(
+            child: Image.asset('assets/images/bg.png', fit: BoxFit.cover),
+          ),
+          Positioned.fill(
+            child: Container(color: Colors.black.withOpacity(0.3)),
+          ),
+          Center(
+            child: SingleChildScrollView(
+              child: Container(
+                margin: EdgeInsets.symmetric(horizontal: 20),
+                padding: EdgeInsets.all(25),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.95),
+                  borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.green.withOpacity(0.2),
+                      blurRadius: 10,
+                      offset: Offset(0, 5),
                     ),
                   ],
                 ),
-              );
-            },
-          ),
-          Positioned(
-            bottom: 40,
-            left: 0,
-            right: 0,
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    _pages.length,
-                    (index) => AnimatedContainer(
-                      duration: Duration(milliseconds: 300),
-                      margin: EdgeInsets.symmetric(horizontal: 4),
-                      width: _currentPage == index ? 20 : 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color:
-                            _currentPage == index ? Colors.green : Colors.grey,
-                        borderRadius: BorderRadius.circular(4),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Image.asset(
+                        'assets/images/Frame.png',
+                        height: 100,
+                        width: 200,
                       ),
-                    ),
+                      SizedBox(height: 20),
+                      Text(
+                        _isLogin ? 'Login' : 'Sign Up',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.green[900],
+                        ),
+                      ),
+                      SizedBox(height: 20),
+                      if (!_isLogin)
+                        TextFormField(
+                          controller: _nameController,
+                          decoration: _inputDecoration('Name', Icons.person),
+                          validator:
+                              (value) =>
+                                  value!.isEmpty ? 'Enter your name' : null,
+                        ),
+                      if (!_isLogin) SizedBox(height: 15),
+                      TextFormField(
+                        controller: _phoneController,
+                        decoration: _inputDecoration(
+                          'Phone Number',
+                          Icons.phone,
+                        ),
+                        keyboardType: TextInputType.phone,
+                        validator: (value) {
+                          if (value!.isEmpty || value.length < 10)
+                            return 'Enter a valid phone number';
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 15),
+                      TextFormField(
+                        controller: _passwordController,
+                        decoration: _inputDecoration('Password', Icons.lock),
+                        obscureText: true,
+                        validator: (value) {
+                          if (value!.isEmpty || value.length < 6)
+                            return 'Password must be at least 6 characters';
+                          return null;
+                        },
+                      ),
+                      SizedBox(height: 25),
+                      ElevatedButton(
+                        onPressed: _submitForm,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 40,
+                            vertical: 15,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                        child: Text(
+                          _isLogin ? 'Login' : 'Sign Up',
+                          style: TextStyle(fontSize: 16, color: Colors.white),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => _isLogin = !_isLogin),
+                        child: Text(
+                          _isLogin
+                              ? 'Create new account'
+                              : 'Already have an account? Login',
+                          style: TextStyle(color: Colors.green[700]),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                SizedBox(height: 20),
-                if (_currentPage == _pages.length - 1)
-                  ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700],
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 40,
-                        vertical: 14,
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => BottomNavigationScreen(),
-                        ),
-                      );
-                    },
-                    child: Text('Get Started', style: TextStyle(fontSize: 16)),
-                  ),
-              ],
+              ),
             ),
           ),
         ],

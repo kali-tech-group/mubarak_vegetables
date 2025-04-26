@@ -1,12 +1,15 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:mubarak_vegetables/widgets/CategoryChip.dart';
-import 'package:mubarak_vegetables/widgets/PromoBanner.dart';
-import 'package:mubarak_vegetables/widgets/product_card.dart';
-
+import 'package:firebase_database/firebase_database.dart';
 import 'package:mubarak_vegetables/widgets/product_grid_item.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/products_provider.dart';
-import '../screens/product_detail_screen.dart'; // Import the product detail screen
+import '../screens/product_detail_screen.dart';
+import '../screens/shared_prefs_helper.dart';
+import '../widgets/CategoryChip.dart';
+import '../widgets/PromoBanner.dart';
+import '../widgets/product_card.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -16,26 +19,51 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  String userName = "Nithesh";
-  String userLocation = "Chennai, Tamil Nadu";
+  String userName = "Hi there!";
+  String userPhone = "";
+  String userAddress = "Address not available";
   int _selectedCategoryIndex = 0;
 
-  final List<String> categories = [
-    'All',
-    'Leafy',
-    'Root',
-    'Fruits',
-    'Organic',
-    'Seasonal',
-    'Herbs',
-  ];
+  final List<String> categories = ['All'];
 
   @override
   void initState() {
     super.initState();
+    _loadUserData();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Provider.of<ProductsProvider>(context, listen: false).loadData();
     });
+  }
+
+  Future<void> _loadUserData() async {
+    final name = await SharedPrefsHelper.getUserName() ?? '';
+    final phone = await SharedPrefsHelper.getUserPhone() ?? '';
+
+    setState(() {
+      userName = name.isNotEmpty ? "Hi, $name!" : "Hi there!";
+      userPhone = phone;
+    });
+
+    if (userPhone.isNotEmpty) {
+      Object fetchedAddress = await _fetchUserAddressFromFirebase(userPhone);
+      setState(() {
+        userAddress = fetchedAddress as String;
+      });
+    }
+  }
+
+  Future<Object> _fetchUserAddressFromFirebase(String phone) async {
+    final ref = FirebaseDatabase.instance.ref().child('users');
+    DataSnapshot snapshot = await ref.child(phone).get();
+
+    if (snapshot.exists) {
+      Object address =
+          snapshot.child('location')?.child('address').value ??
+          "Address not available";
+      return address;
+    } else {
+      return "Address not available";
+    }
   }
 
   @override
@@ -45,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: Colors.white,
       body:
           productsProvider.isLoading
               ? const Center(child: CircularProgressIndicator())
@@ -53,76 +81,103 @@ class _HomeScreenState extends State<HomeScreen> {
               ? Center(child: Text(productsProvider.error!))
               : CustomScrollView(
                 slivers: [
-                  // App Bar Sliver
+                  // ✅ Beautiful SliverAppBar with username + address
                   SliverAppBar(
-                    expandedHeight: size.height * 0.15,
-                    floating: false,
+                    expandedHeight: size.height * 0.13,
                     pinned: true,
+                    backgroundColor: Colors.green.shade700,
                     flexibleSpace: FlexibleSpaceBar(
-                      title: Text(
-                        'Hi, $userName 👋',
-                        style: theme.textTheme.titleLarge?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      background: Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.green[700]!, Colors.green[500]!],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
+                      background: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          const DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Color(0xFF0f4c3a), Color(0xFF1cb279)],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                            ),
                           ),
-                        ),
+                          BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                            child: Container(
+                              color: Colors.black.withOpacity(0.1),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              top: 60,
+                              left: 16,
+                              right: 16,
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  userName,
+                                  style: const TextStyle(
+                                    fontSize: 22,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white,
+                                    shadows: [
+                                      Shadow(
+                                        offset: Offset(1.5, 1.5),
+                                        blurRadius: 3,
+                                        color: Colors.black45,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    const Icon(
+                                      Icons.location_on,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Expanded(
+                                      child: Text(
+                                        userAddress,
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          shadows: [
+                                            Shadow(
+                                              offset: Offset(1.5, 1.5),
+                                              blurRadius: 3,
+                                              color: Colors.black45,
+                                            ),
+                                          ],
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
 
-                  // Main Content Sliver
+                  // ✅ Promo Banner + Categories
                   SliverPadding(
                     padding: const EdgeInsets.all(16.0),
                     sliver: SliverList(
                       delegate: SliverChildListDelegate([
-                        // Location Row
-                        Row(
-                          children: [
-                            const Icon(
-                              Icons.location_on_outlined,
-                              size: 20,
-                              color: Colors.green,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              userLocation,
-                              style: theme.textTheme.bodyMedium?.copyWith(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            const Spacer(),
-                            TextButton(
-                              onPressed: () {},
-                              child: Text(
-                                'Change',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-
-                        // Promo Banner
                         const PromoBanner(
                           title: '30% OFF',
-                          subtitle: 'On your first order',
+                          subtitle: 'USE PROMO CODE MUBARAKOFF30',
                           buttonText: 'Order Now',
-                          imagePath: 'assets/vegetable_basket.png',
+                          imagePath: 'assets/images/vegi.jpeg',
                         ),
                         const SizedBox(height: 24),
-
-                        // Categories Horizontal List
                         SizedBox(
                           height: 50,
                           child: ListView.builder(
@@ -142,8 +197,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         const SizedBox(height: 20),
-
-                        // Section Title
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -151,6 +204,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               'Featured Vegetables',
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
+                                fontSize: 18,
                               ),
                             ),
                             TextButton(
@@ -170,7 +224,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
-                  // Products Grid
+                  // ✅ Product Grid
                   SliverPadding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     sliver: SliverGrid(
@@ -189,7 +243,6 @@ class _HomeScreenState extends State<HomeScreen> {
                             productsProvider.featuredProducts[index];
                         return GestureDetector(
                           onTap: () {
-                            // Navigate to ProductDetailScreen
                             Navigator.pushNamed(
                               context,
                               ProductDetailScreen.routeName,
@@ -201,7 +254,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       }, childCount: productsProvider.featuredProducts.length),
                     ),
                   ),
-
                   const SliverPadding(padding: EdgeInsets.only(bottom: 80)),
                 ],
               ),

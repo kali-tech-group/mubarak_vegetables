@@ -31,4 +31,6 @@ class FirebaseService {
     }
     return null;
   }
+
+  static validatePromo(String promoCode) {}
 }
